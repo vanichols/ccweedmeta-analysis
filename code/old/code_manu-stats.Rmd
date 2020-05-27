@@ -1,0 +1,120 @@
+---
+title: "Manu-stats"
+author: "Gina Nichols"
+date: "December 27, 2019"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+#knitr::opts_knit$set(root.dir = "../")
+library(ezknitr)
+library(lme4)
+library(tidyverse)
+library(lmerTest)
+library(janitor)
+library(emmeans)
+
+dat <- read_csv("../_tidydata/td_cc-database-clean-long.csv")
+
+den <- dat %>% filter(resp == "den") %>% filter(!is.na(LRR)) %>% mutate(cc_bio_Mgha = cc_bio_kgha/1000)
+bio <- dat %>% filter(resp == "bio") %>% filter(!is.na(LRR)) %>% mutate(cc_bio_Mgha = cc_bio_kgha/1000)
+
+```
+
+# Overall, what is the mean cover crop biomass for each cover crop group (grass vs non-grass)?
+```{r mean ccbiomass}
+m1 <- (lmer(cc_bio_Mgha ~ cc_type2 + (1|study), data = bio))
+summary(m1)
+```
+
+# In which modifiers do we need to include CC biomass as a covariate? 
+```{r ccbiomass cov}
+
+# msmt_season, no
+summary(lmer(cc_bio_Mgha ~ msmt_season + (1|study), data = bio))
+
+# weed_group, no
+summary(lmer(cc_bio_Mgha ~ weed_group + (1|study), data = bio))
+
+# sys_tillage, no
+summary(lmer(cc_bio_Mgha ~ cropsys_tillage + (1|study), data = bio))
+
+# aridity, no
+summary(lmer(cc_bio_Mgha ~ aridity_index + (1|study), data = bio))
+
+# OM, yes, but it goes down as OM pct goes up. I guess include it?
+summary(lmer(cc_bio_Mgha ~ OM_pct + (1|study), data = bio))
+
+```
+
+# What is the overall effect of CCs on weed biomass and density?
+Do CCs sig effect weed *biomass*?
+```{r overall bio}
+  
+mo.bio <- lmer(LRR ~ 1 + (1|study), data = bio, weights = wgt)
+summary(mo.bio)
+
+```
+Yes, what are the estimates and 95% confidence ranges?
+```{r overall bio est}
+
+as_tibble(contest(mo.bio, L=1, joint=F, level=0.95)) %>% 
+  clean_names() %>% 
+  select(estimate, lower, upper, pr_t) %>% 
+  gather(key = parm, value = val) %>% 
+  mutate(val_pct = 100 - exp(val)*100)
+
+```
+What is the fail-safe-number for this significant result?
+```{r fsn bio}
+library(metafor)
+bio_fsn <- bio %>%
+  mutate(yi = LRR,
+         vi = 1/wgt)
+
+fsn(yi, vi, data=bio_fsn)
+```
+Do CCs sig effect weed *density*?
+```{r overall den}
+  
+mo.den <- lmer(LRR ~ 1 + (1|study), data = den, weights = wgt)
+summary(mo.den)
+```
+
+# Which modifiers have significantly different values?
+```{r sig mods bio}
+read_csv("../_tidydata/sd_mods-weeds-contrasts.csv") %>% 
+  filter(resp == "bio") %>% 
+  mutate_if(is.numeric, round, 3) %>% 
+  select(resp, mod_code, level1, level2, est, se, df, p.value) %>% 
+  arrange(resp, p.value)
+```
+1. Measurement season
+1. Measurement in reference to planting
+1. CC type
+1. weed group
+
+```{r sig mods den}
+read_csv("../_tidydata/sd_mods-weeds-contrasts.csv") %>% 
+  filter(resp == "den") %>% 
+  mutate_if(is.numeric, round, 3) %>% 
+  select(resp, mod_code, level1, level2, est, se, df, p.value) %>% 
+  arrange(resp, p.value)
+```
+1. Measurement season (but only bc it includes fall)
+1. Following crop (only because we have corn/soy)
+1. and MAYBE cropsys_tillage
+
+For the significant modifiers, what are the estimates and CIs for weed *biomass*?
+```{r sig mods bio est}
+read_csv("../_tidydata/sd_mods-weeds-contrasts.csv") %>% 
+  filter(resp == "bio") %>% 
+  filter(p.value < 0.05) %>% 
+  mutate_if(is.numeric, round, 3)
+
+read_csv("../_tidydata/sd_mods-weeds.csv") %>% 
+  select(resp, modlvl, est) %>%  
+  mutate(val_pct = 100-exp(est)*100)
+  
+```
