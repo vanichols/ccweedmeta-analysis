@@ -6,6 +6,7 @@
 # Last modified:  March 2 2020 (short manu figs)
 #                 March 18 2020 (update from comments)
 #                 April 30 2020 (update from comments)
+#                 June 10 2020 (make figs for pub)
 #
 #
 # Inputs: wd_long
@@ -288,9 +289,10 @@ ggsave("figs/manu_1c-win-win.png", width = 20/2, height = 20/2, units = "cm")
 
 library(gridExtra)
 
-png("figs/manu_fig1.png") 
+jpeg("figs/pub/manu_fig1.jpg", quality = 80, units = "cm", height = 16, width = 16, res = 600) 
 grid.arrange(fig1a, fig1b, fig1c,
              widths = c(1,1),
              layout_matrix = rbind(c(1, 1),
                                    c(2, 3)))
 dev.off() 
+
